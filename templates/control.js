@@ -1388,3 +1388,177 @@ document.getElementById('open_jupyter').addEventListener('click', function() {
     var newUrl = currentUrl.replace(/:(\d+)/, ':8888');
     window.open(newUrl, '_blank');
 });
+
+
+// WiFi Manager
+var wifiConnectTarget = '';
+
+function wifiShowMessage(msg, isError) {
+    var el = document.getElementById('wifi-message');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.color = isError ? '#FF8C8C' : '#4FF5C0';
+    setTimeout(function() { el.style.display = 'none'; }, 5000);
+}
+
+function wifiUpdateStatus() {
+    fetch('/wifi/status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            document.getElementById('wifi-mode').textContent = data.mode || '--';
+            document.getElementById('wifi-ssid').textContent = data.ssid || '--';
+            document.getElementById('wifi-ip').textContent = data.ip || '--';
+            var hBtn = document.getElementById('wifi-hotspot-btn');
+            if (data.mode === 'AP') {
+                hBtn.textContent = 'Hotspot Active';
+                hBtn.classList.add('ctl_btn_active');
+            } else {
+                hBtn.textContent = 'Switch to Hotspot';
+                hBtn.classList.remove('ctl_btn_active');
+            }
+        })
+        .catch(function(e) { console.error('WiFi status error:', e); });
+}
+
+function wifiScan() {
+    var spinner = document.getElementById('wifi-scan-spinner');
+    var netDiv = document.getElementById('wifi-networks');
+    var netList = document.getElementById('wifi-network-list');
+    netDiv.style.display = 'block';
+    spinner.style.display = 'inline';
+    netList.innerHTML = '';
+
+    fetch('/wifi/scan')
+        .then(function(r) { return r.json(); })
+        .then(function(networks) {
+            spinner.style.display = 'none';
+            if (networks.length === 0) {
+                netList.innerHTML = '<li class="wifi_net_empty">No networks found</li>';
+                return;
+            }
+            var html = '';
+            for (var i = 0; i < networks.length; i++) {
+                var n = networks[i];
+                var sigBars = n.signal > 75 ? '||||' : n.signal > 50 ? '|||' : n.signal > 25 ? '||' : '|';
+                var lockIcon = n.security ? ' [secured]' : '';
+                html += '<li class="wifi_net_item" data-ssid="' + n.ssid.replace(/"/g, '&quot;') + '" data-secured="' + (n.security ? '1' : '0') + '">';
+                html += '<span class="wifi_net_name">' + n.ssid + '</span>';
+                html += '<span class="wifi_net_detail">' + sigBars + ' ' + n.signal + '%' + lockIcon + '</span>';
+                html += '</li>';
+            }
+            netList.innerHTML = html;
+
+            var items = netList.querySelectorAll('.wifi_net_item');
+            for (var j = 0; j < items.length; j++) {
+                items[j].addEventListener('click', function() {
+                    var ssid = this.getAttribute('data-ssid');
+                    var secured = this.getAttribute('data-secured') === '1';
+                    wifiConnect(ssid, secured);
+                });
+            }
+        })
+        .catch(function(e) {
+            spinner.style.display = 'none';
+            wifiShowMessage('Scan failed: ' + e, true);
+        });
+}
+
+function wifiConnect(ssid, secured) {
+    wifiConnectTarget = ssid;
+    if (secured) {
+        // Check if we have a saved profile first
+        fetch('/wifi/saved')
+            .then(function(r) { return r.json(); })
+            .then(function(saved) {
+                var hasSaved = false;
+                for (var i = 0; i < saved.length; i++) {
+                    if (saved[i] === ssid) { hasSaved = true; break; }
+                }
+                if (hasSaved) {
+                    wifiDoConnect(ssid, '');
+                } else {
+                    document.getElementById('wifi-connect-ssid').textContent = ssid;
+                    document.getElementById('wifi-password-input').value = '';
+                    document.getElementById('wifi-password-dialog').style.display = 'block';
+                    document.getElementById('wifi-password-input').focus();
+                }
+            })
+            .catch(function() {
+                document.getElementById('wifi-connect-ssid').textContent = ssid;
+                document.getElementById('wifi-password-input').value = '';
+                document.getElementById('wifi-password-dialog').style.display = 'block';
+                document.getElementById('wifi-password-input').focus();
+            });
+    } else {
+        wifiDoConnect(ssid, '');
+    }
+}
+
+function wifiConnectConfirm() {
+    var pw = document.getElementById('wifi-password-input').value;
+    document.getElementById('wifi-password-dialog').style.display = 'none';
+    wifiDoConnect(wifiConnectTarget, pw);
+}
+
+function wifiConnectCancel() {
+    document.getElementById('wifi-password-dialog').style.display = 'none';
+    wifiConnectTarget = '';
+}
+
+function wifiDoConnect(ssid, password) {
+    wifiShowMessage('Connecting to ' + ssid + '...', false);
+    fetch('/wifi/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'ssid=' + encodeURIComponent(ssid) + '&password=' + encodeURIComponent(password)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        wifiShowMessage(data.message, !data.success);
+        if (data.success) {
+            document.getElementById('wifi-networks').style.display = 'none';
+            // Delay status update to allow network to settle
+            setTimeout(wifiUpdateStatus, 3000);
+        }
+    })
+    .catch(function(e) { wifiShowMessage('Connection error: ' + e, true); });
+}
+
+function wifiSwitchHotspot() {
+    var mode = document.getElementById('wifi-mode').textContent;
+    if (mode === 'AP') {
+        wifiShowMessage('Already in hotspot mode', false);
+        return;
+    }
+    wifiShowMessage('Switching to hotspot...', false);
+    fetch('/wifi/hotspot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: ''
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        wifiShowMessage(data.message, !data.success);
+        if (data.success) {
+            document.getElementById('wifi-networks').style.display = 'none';
+            setTimeout(wifiUpdateStatus, 3000);
+        }
+    })
+    .catch(function(e) { wifiShowMessage('Hotspot error: ' + e, true); });
+}
+
+// Update WiFi status on page load and periodically
+if (document.getElementById('wifi-mode')) {
+    wifiUpdateStatus();
+    setInterval(wifiUpdateStatus, 10000);
+}
+
+// Allow Enter key in password field
+var wifiPwInput = document.getElementById('wifi-password-input');
+if (wifiPwInput) {
+    wifiPwInput.addEventListener('keydown', function(e) {
+        if (e.keyCode === 13) { wifiConnectConfirm(); }
+    });
+    wifiPwInput.addEventListener('focus', function() { isInputFocused = true; });
+    wifiPwInput.addEventListener('blur', function() { isInputFocused = false; });
+}

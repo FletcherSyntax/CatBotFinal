@@ -297,6 +297,41 @@
                 </div>
             </section>
             <section>
+                <div class="wifi_manager">
+                    <h2 class="sc_title normal_sc_title">WiFi Manager</h2>
+                    <div class="wifi_status_bar">
+                        <div class="wifi_status_info">
+                            <span>Mode: <strong id="wifi-mode">--</strong></span>
+                            <span>Network: <strong id="wifi-ssid">--</strong></span>
+                            <span>IP: <strong id="wifi-ip">--</strong></span>
+                        </div>
+                        <div class="wifi_status_actions">
+                            <button id="wifi-hotspot-btn" class="ctl_btn" onclick="wifiSwitchHotspot();">Switch to Hotspot</button>
+                            <button id="wifi-scan-btn" class="ctl_btn" onclick="wifiScan();">Scan Networks</button>
+                        </div>
+                    </div>
+                    <div id="wifi-networks" class="wifi_networks" style="display:none;">
+                        <div class="wifi_net_header">
+                            <span>Available Networks</span>
+                            <span id="wifi-scan-spinner" style="display:none;">Scanning...</span>
+                        </div>
+                        <ul id="wifi-network-list" class="wifi_net_list">
+                        </ul>
+                    </div>
+                    <div id="wifi-password-dialog" class="wifi_pw_dialog" style="display:none;">
+                        <div>
+                            <span>Connect to: <strong id="wifi-connect-ssid"></strong></span>
+                            <input type="password" id="wifi-password-input" placeholder="Enter password" />
+                            <div class="wifi_pw_actions">
+                                <button class="normal_btn normal_btn_size" onclick="wifiConnectConfirm();">Connect</button>
+                                <button class="normal_btn normal_btn_size" onclick="wifiConnectCancel();">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="wifi-message" class="wifi_message" style="display:none;"></div>
+                </div>
+            </section>
+            <section>
                 <div>
                     <h2 id="test" class="sc_title normal_sc_title">Bus Servos Initialization Setup</h2>
                     <div class="long_btn new_page ">
