@@ -46,6 +46,7 @@ import logging
 import cv_ctrl
 import audio_ctrl
 import os_info
+import wifi_ctrl
 
 # Get system info
 UPLOAD_FOLDER = thisPath + '/sounds/others'
@@ -471,6 +472,41 @@ def audio_stop():
 def serve_static_settings(filename):
     return send_from_directory('templates', filename)
 
+
+# WiFi management endpoints
+@app.route('/wifi/status')
+def wifi_status():
+    return jsonify(wifi_ctrl.get_wifi_status())
+
+@app.route('/wifi/scan')
+def wifi_scan():
+    return jsonify(wifi_ctrl.scan_networks())
+
+@app.route('/wifi/saved')
+def wifi_saved():
+    return jsonify(wifi_ctrl.get_saved_profiles())
+
+@app.route('/wifi/connect', methods=['POST'])
+def wifi_connect():
+    ssid = request.form.get('ssid', '')
+    password = request.form.get('password', '')
+    if not ssid:
+        return jsonify({"success": False, "message": "SSID is required"})
+    success, message = wifi_ctrl.connect_to_network(ssid, password if password else None)
+    return jsonify({"success": success, "message": message})
+
+@app.route('/wifi/hotspot', methods=['POST'])
+def wifi_hotspot():
+    success, message = wifi_ctrl.switch_to_hotspot()
+    return jsonify({"success": success, "message": message})
+
+@app.route('/wifi/forget', methods=['POST'])
+def wifi_forget():
+    ssid = request.form.get('ssid', '')
+    if not ssid:
+        return jsonify({"success": False, "message": "SSID is required"})
+    success, message = wifi_ctrl.forget_network(ssid)
+    return jsonify({"success": success, "message": message})
 
 
 # Web socket

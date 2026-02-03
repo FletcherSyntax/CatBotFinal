@@ -727,6 +727,121 @@ ul.video-list li a:hover div .normal_btn_play::before{background-image: url('./i
   padding: 5px;
   margin: 5px 0;
 }
+/* WiFi Manager */
+.wifi_manager{padding: 0 10px;}
+.wifi_status_bar{
+    margin: 20px auto;
+    text-align: center;
+}
+.wifi_status_info{
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+.wifi_status_info span{
+    color: #8f8f9e;
+}
+.wifi_status_info strong{
+    color: #4FF5C0;
+}
+.wifi_status_actions{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.wifi_status_actions .ctl_btn{
+    width: 200px;
+}
+.wifi_networks{
+    margin: 10px auto;
+    max-width: 500px;
+}
+.wifi_net_header{
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    color: #8f8f9e;
+    border-bottom: 1px solid rgba(202,213,255,0.1);
+}
+.wifi_net_list{
+    max-height: 260px;
+    overflow-y: auto;
+}
+.wifi_net_list::-webkit-scrollbar-track{background-color: rgba(0,0,0,0.2);}
+.wifi_net_list::-webkit-scrollbar-thumb{background-color: rgba(203,213,255,0.3);}
+.wifi_net_list::-webkit-scrollbar{width: 8px;}
+.wifi_net_item{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(202,213,255,0.05);
+}
+.wifi_net_item:nth-child(odd){
+    background-color: rgba(202,213,255,0.04);
+}
+.wifi_net_item:hover{
+    background-color: rgba(79,245,192,0.08);
+    color: #4FF5C0;
+}
+.wifi_net_name{font-weight: bold;}
+.wifi_net_detail{
+    color: #8f8f9e;
+    font-size: 0.9em;
+}
+.wifi_net_empty{
+    text-align: center;
+    padding: 20px;
+    color: #8f8f9e;
+}
+.wifi_pw_dialog{
+    margin: 15px auto;
+    max-width: 400px;
+    background-color: rgba(202,213,255,0.06);
+    border: 1px solid rgba(202,213,255,0.1);
+    border-radius: 6px;
+    padding: 15px;
+}
+.wifi_pw_dialog span{
+    display: block;
+    margin-bottom: 10px;
+    color: #8f8f9e;
+}
+.wifi_pw_dialog strong{color: #4FF5C0;}
+.wifi_pw_dialog input{
+    width: 100%;
+    padding: 10px;
+    background-color: #161618;
+    border: 1px solid rgba(202,213,255,0.1);
+    border-radius: 4px;
+    color: #D8D8D8;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+}
+.wifi_pw_dialog input:focus{
+    outline: none;
+    border-color: #4FF5C0;
+}
+.wifi_pw_actions{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+.wifi_pw_actions .normal_btn{
+    width: 120px;
+    height: 40px;
+}
+.wifi_message{
+    text-align: center;
+    padding: 10px;
+    margin: 10px auto;
+    max-width: 500px;
+    border-radius: 4px;
+    background-color: rgba(202,213,255,0.04);
+}
 /* pad */
 @media screen and (min-width: 768px) and (max-width: 1200px){
     main{
@@ -870,6 +985,8 @@ ul.video-list li a:hover div .normal_btn_play::before{background-image: url('./i
         margin: auto;
     }
     .code_input textarea{margin: 40px 0 10px;}
+    .wifi_status_actions{flex-wrap: wrap;}
+    .wifi_status_actions .ctl_btn{width: 180px;}
 }
 /* phone */ 
 @media screen and (min-width: 360px) and (max-width: 767px){
@@ -1053,4 +1170,10 @@ ul.video-list li a:hover div .normal_btn_play::before{background-image: url('./i
         width: 92vw;
         margin: 40px auto;
     }
+    .wifi_manager{padding: 0 4vw;}
+    .wifi_status_info{gap: 10px;}
+    .wifi_status_actions{flex-direction: column;align-items: center;}
+    .wifi_status_actions .ctl_btn{width: 80vw;}
+    .wifi_networks{max-width: 92vw;}
+    .wifi_pw_dialog{max-width: 92vw;}
 }
