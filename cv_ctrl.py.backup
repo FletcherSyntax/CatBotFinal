@@ -144,7 +144,7 @@ class OpencvFuncs():
         self.add_osd = f['base_config']['add_osd']
 
         # camera type detection
-        self.usb_camera_connected = False  # Force CSI camera mode
+        self.usb_camera_connected = self.usb_camera_detection()
 
         # usb camera init
         if self.usb_camera_connected:
