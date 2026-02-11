@@ -36,9 +36,7 @@ base.base_oled(3, "Starting...")
 from flask import Flask, render_template, Response, request, jsonify, redirect, url_for, send_from_directory, send_file
 from flask_socketio import SocketIO, emit
 from werkzeug.utils import secure_filename
-from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack, RTCConfiguration, RTCIceServer
-from aiortc.contrib.media import MediaPlayer, MediaRecorder
-from av import VideoFrame, AudioFrame
+from aiortc import RTCPeerConnection, RTCSessionDescription
 import json
 import uuid
 import asyncio
@@ -46,7 +44,6 @@ import time
 import logging
 import logging
 import cv_ctrl
-import cv2  # Add this line
 import audio_ctrl
 import os_info
 import wifi_ctrl
@@ -61,38 +58,6 @@ app = Flask(__name__)
 # log.disabled = True
 socketio = SocketIO(app)
 
-# Keep peer connections alive
-import threading
-pc_keep_alive_lock = threading.Lock()
-
-# WebRTC Configuration
-import subprocess
-
-def get_tailscale_ip():
-    try:
-        result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True)
-        return result.stdout.strip()
-    except:
-        return "127.0.0.1"
-
-TURN_IP = get_tailscale_ip()
-TURN_USER = "catbot"
-TURN_PASS = "wasted"  # Match what's in /etc/turnserver.conf
-
-rtc_configuration = RTCConfiguration(
-    iceServers=[
-        RTCIceServer(urls="stun:stun.l.google.com:19302"),
-        RTCIceServer(
-            urls=[
-                f"turn:{TURN_IP}:3478",
-                f"turn:{TURN_IP}:3478?transport=tcp"
-            ],
-            username=TURN_USER,
-            credential=TURN_PASS
-        ),
-    ]
-)
-
 # Set to keep track of RTCPeerConnection instances
 active_pcs = {}
 
@@ -104,75 +69,6 @@ pcs = set()
 
 # Camera funcs
 cvf = cv_ctrl.OpencvFuncs(thisPath, base)
-
-class TestVideoTrack(VideoStreamTrack):
-    def __init__(self):
-        super().__init__()
-        import numpy as np, cv2
-        small = np.random.randint(0, 256, (30, 40, 3), dtype=np.uint8)
-        self.img = cv2.resize(small, (80, 60), interpolation=cv2.INTER_LINEAR)
-        self.img = np.ascontiguousarray(self.img, dtype=np.uint8)
-        print(f"Tiny blurry: {self.img.shape}")
-        self.count = 0
-    async def recv(self):
-        pts, time_base = await self.next_timestamp()
-        frame = VideoFrame.from_ndarray(self.img, format="rgb24")
-        frame.pts = pts
-        frame.time_base = time_base
-        return frame
-
-# Video track that wraps our OpenCV camera
-class CameraVideoTrack(VideoStreamTrack):
-    def __init__(self, cvf):
-        super().__init__()
-        import numpy as np
-        import threading
-        self.last_frame = np.zeros((720, 1280, 3), dtype=np.uint8)
-        self._lock = threading.Lock()
-        self.count = 0
-        def capture():
-            while True:
-                try:
-                    frame_bytes = cvf.frame_process()
-                    nparr = np.frombuffer(frame_bytes, np.uint8)
-                    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                    if img is not None:
-                        img = cv2.resize(img, (1280, 720))
-                        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                        with self._lock:
-                            self.last_frame = img_rgb
-                except:
-                    pass
-        threading.Thread(target=capture, daemon=True).start()
-        print("CameraVideoTrack initialized at 640x480")
-    async def recv(self):
-        pts, time_base = await self.next_timestamp()
-        with self._lock:
-            img = self.last_frame.copy()
-        frame = VideoFrame.from_ndarray(img, format="rgb24")
-        frame.pts = pts
-        frame.time_base = time_base
-        self.count += 1
-        if self.count % 30 == 0:
-            print(f"CameraVideoTrack: sent {self.count} frames")
-        return frame
-
-
-# Audio track from microphone
-#class MicrophoneAudioTrack(AudioStreamTrack):
-#    """
-#    Audio track from system microphone/Bluetooth speaker
-#    """
-#    def __init__(self):
-#        super().__init__()
-#        self.player = MediaPlayer(
-#            'default',
-#            format='alsa',
-#            options={'sample_rate': '48000', 'channels': '1'}
-#        )
-#    
-#    async def recv(self):
-        return await self.player.audio.recv()  
 
 cmd_actions = {
     f['code']['zoom_x1']: lambda: cvf.scale_ctrl(1),
@@ -262,22 +158,6 @@ def get_config():
         yaml_content = file.read()
     return yaml_content
 
-@app.route('/ice-config')
-def ice_config():
-    return jsonify({
-        'iceServers': [
-            {'urls': 'stun:stun.l.google.com:19302'},
-            {
-                'urls': [
-                    f'turn:{TURN_IP}:3478',
-                    f'turn:{TURN_IP}:3478?transport=tcp'
-                ],
-                'username': TURN_USER,
-                'credential': TURN_PASS
-            }
-        ]
-    })
-
 # get pictures and videos.
 @app.route('/<path:filename>')
 def serve_static(filename):
@@ -326,108 +206,46 @@ def delete_video():
 
 # Video WebRTC
 # Function to manage connections
-async def manage_connections(pc_id, pc):
+def manage_connections(pc_id):
     if len(active_pcs) >= MAX_CONNECTIONS:
         # If maximum connections reached, terminate the oldest connection
         oldest_pc_id = next(iter(active_pcs))
         old_pc = active_pcs.pop(oldest_pc_id)
-        await old_pc.close()
+        old_pc.close()
+
     # Add new connection to active connections
     active_pcs[pc_id] = pc
 
+# Asynchronous function to handle offer exchange
 async def offer_async():
-    params = request.json
+    params = await request.json
     offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
-    pc = RTCPeerConnection(configuration=rtc_configuration)
-    @pc.on("iceconnectionstatechange")
-    async def on_ice_state_change():
-        print(f">>> SERVER ICE STATE: {pc.iceConnectionState}")
-    @pc.on("connectionstatechange")
-    async def on_connection_state_change():
-        print(f">>> SERVER CONNECTION STATE: {pc.connectionState}")
-    # Handle incoming audio from browser
-    @pc.on("track")
-    async def on_track(track):
-        print(f"Received {track.kind} track from browser")
-        if track.kind == "audio":
-            try:
-                import subprocess
-                paplay_proc = subprocess.Popen(
-                    ['paplay', '--format=s16le', '--rate=48000', '--channels=2', '--raw'],
-                    stdin=subprocess.PIPE
-                )
-                
-                async def play_audio():
-                    count = 0
-                    try:
-                        while True:
-                            frame = await track.recv()
-                            count += 1
-                            if count <= 3 or count % 100 == 0:
-                                print(f"Audio frame {count}: samples={frame.samples} rate={frame.sample_rate}")
-                            arr = frame.to_ndarray()
-                            if count <= 3:
-                                print(f"  ndarray shape={arr.shape} dtype={arr.dtype} min={arr.min()} max={arr.max()}")
-                            raw = arr.tobytes()
-                            try:
-                                paplay_proc.stdin.write(raw)
-                                paplay_proc.stdin.flush()
-                            except BrokenPipeError:
-                                print("paplay pipe broken!")
-                                break
-                    except Exception as e:
-                        print(f"Audio playback ended after {count} frames: {e}")
-                        paplay_proc.stdin.close()
-                        paplay_proc.wait()
-                
-                import asyncio as aio
-                aio.ensure_future(play_audio())
-                print("Playing browser audio through speaker via paplay")
-                @track.on("ended")
-                async def on_ended():
-                    await recorder.stop()
-                    print("Browser audio track ended")
-            except Exception as e:
-                print(f"Error playing incoming audio: {e}")
-    await pc.setRemoteDescription(offer)
-    video_track = CameraVideoTrack(cvf)
-    pc.addTrack(video_track)
-    print("Added video track")
-    # Add Pi microphone audio
-    try:
-        audio_player = MediaPlayer(
-            'default',
-            format='pulse',
-            options={'sample_rate': '48000', 'channels': '1'}
-        )
-        if audio_player.audio:
-            pc.addTrack(audio_player.audio)
-            print("USB mic audio track added")
-        else:
-            print("WARNING: No audio track from MediaPlayer")
-    except Exception as e:
-        print(f"Could not add audio: {e}")
-    answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-    print("Waiting for ICE candidates...")
-    await asyncio.sleep(2)
-    print(f"ICE gathering state: {pc.iceGatheringState}")
-    print(f"Local description SDP length: {len(pc.localDescription.sdp)}")
-    # Filter out IPv6 candidates
-    sdp_lines = pc.localDescription.sdp.split("\r\n")
-    sdp_lines = [l for l in sdp_lines if not (l.startswith("a=candidate:") and (" " + ":" in l.split(" ")[4] if len(l.split(" ")) > 4 else False))]
-    filtered_sdp = "\r\n".join(sdp_lines)
-    return jsonify({"sdp": filtered_sdp, "type": pc.localDescription.type})
+
+    # Create an RTCPeerConnection instance
+    pc = RTCPeerConnection()
+
+    # Generate a unique ID for the RTCPeerConnection
+    pc_id = "PeerConnection(%s)" % uuid.uuid4()
+    pc_id = pc_id[:8]
+
+    # Manage connections
+    manage_connections(pc_id)
+
+    # Create and set the local description
+    await pc.createOffer(offer)
+    await pc.setLocalDescription(offer)
 
     # Prepare the response data with local SDP and type
-    response_data = {
-        "sdp": pc.localDescription.sdp, 
-        "type": pc.localDescription.type
-    }
+    response_data = {"sdp": pc.localDescription.sdp, "type": pc.localDescription.type}
 
     return jsonify(response_data)
 
 # Wrapper function for running the asynchronous offer function
+def offer():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    future = asyncio.run_coroutine_threadsafe(offer_async(), loop)
     return future.result()
 
 # set product version
@@ -602,23 +420,8 @@ def cmdline_ctrl(args_string):
 
 # Route to handle the offer request
 @app.route('/offer', methods=['POST'])
-def offer():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    # Run in a background thread to keep loop alive
-    def run_loop():
-        asyncio.set_event_loop(loop)
-        loop.run_forever()
-    
-    thread = threading.Thread(target=run_loop, daemon=True)
-    thread.start()
-    
-    # Run the offer_async coroutine
-    future = asyncio.run_coroutine_threadsafe(offer_async(), loop)
-    result = future.result(timeout=10)
-    
-    return result
+def offer_route():
+    return offer()
 
 # Route to stream video frames
 @app.route('/video_feed')
