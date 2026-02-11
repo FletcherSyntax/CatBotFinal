@@ -262,6 +262,21 @@ def get_config():
         yaml_content = file.read()
     return yaml_content
 
+# Telepresence state
+app.config["telepresence_active"] = False
+
+@app.route("/telepresence/start", methods=["POST"])
+def telepresence_start():
+    app.config["telepresence_active"] = True
+    print(">>> TELEPRESENCE STARTED - browser audio now playing through speaker")
+    return jsonify({"status": "ok", "telepresence": True})
+
+@app.route("/telepresence/stop", methods=["POST"])
+def telepresence_stop():
+    app.config["telepresence_active"] = False
+    print(">>> TELEPRESENCE STOPPED - browser audio muted")
+    return jsonify({"status": "ok", "telepresence": False})
+
 @app.route('/ice-config')
 def ice_config():
     return jsonify({
@@ -350,45 +365,45 @@ async def offer_async():
     async def on_track(track):
         print(f"Received {track.kind} track from browser")
         if track.kind == "audio":
-            try:
+            # Store track reference for telepresence toggle
+            app.config['browser_audio_track'] = track
+            
+            async def play_audio():
                 import subprocess
-                paplay_proc = subprocess.Popen(
-                    ['paplay', '--format=s16le', '--rate=48000', '--channels=2', '--raw'],
-                    stdin=subprocess.PIPE
-                )
-                
-                async def play_audio():
-                    count = 0
-                    try:
-                        while True:
-                            frame = await track.recv()
-                            count += 1
-                            if count <= 3 or count % 100 == 0:
-                                print(f"Audio frame {count}: samples={frame.samples} rate={frame.sample_rate}")
-                            arr = frame.to_ndarray()
-                            if count <= 3:
-                                print(f"  ndarray shape={arr.shape} dtype={arr.dtype} min={arr.min()} max={arr.max()}")
-                            raw = arr.tobytes()
-                            try:
-                                paplay_proc.stdin.write(raw)
-                                paplay_proc.stdin.flush()
-                            except BrokenPipeError:
-                                print("paplay pipe broken!")
-                                break
-                    except Exception as e:
-                        print(f"Audio playback ended after {count} frames: {e}")
+                paplay_proc = None
+                count = 0
+                try:
+                    while True:
+                        frame = await track.recv()
+                        count += 1
+                        # Only play audio when telepresence is active
+                        if not app.config.get('telepresence_active', False):
+                            continue
+                        # Start paplay on first real frame
+                        if paplay_proc is None:
+                            paplay_proc = subprocess.Popen(
+                                ['paplay', '--format=s16le', '--rate=48000', '--channels=2', '--raw'],
+                                stdin=subprocess.PIPE
+                            )
+                            print("Started paplay for telepresence audio")
+                        arr = frame.to_ndarray()
+                        try:
+                            paplay_proc.stdin.write(arr.tobytes())
+                            paplay_proc.stdin.flush()
+                        except BrokenPipeError:
+                            print("paplay pipe broken, restarting...")
+                            paplay_proc = subprocess.Popen(
+                                ['paplay', '--format=s16le', '--rate=48000', '--channels=2', '--raw'],
+                                stdin=subprocess.PIPE
+                            )
+                except Exception as e:
+                    print(f"Audio track ended after {count} frames: {e}")
+                    if paplay_proc:
                         paplay_proc.stdin.close()
                         paplay_proc.wait()
-                
-                import asyncio as aio
-                aio.ensure_future(play_audio())
-                print("Playing browser audio through speaker via paplay")
-                @track.on("ended")
-                async def on_ended():
-                    await recorder.stop()
-                    print("Browser audio track ended")
-            except Exception as e:
-                print(f"Error playing incoming audio: {e}")
+            import asyncio as aio
+            aio.ensure_future(play_audio())
+            print("Audio track ready (waiting for telepresence)")
     await pc.setRemoteDescription(offer)
     video_track = CameraVideoTrack(cvf)
     pc.addTrack(video_track)

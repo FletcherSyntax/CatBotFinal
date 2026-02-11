@@ -1,16 +1,17 @@
-// WebRTC with full ICE debugging
+// WebRTC with telepresence toggle
 let webrtcPC = null;
+let telepresenceActive = false;
+let localMicStream = null;
+let micSender = null;
 
 async function startWebRTC() {
     console.log("=== Starting WebRTC ===");
 
-    // Fetch TURN config from server
     const iceResponse = await fetch('/ice-config');
     const iceConfig = await iceResponse.json();
 
     webrtcPC = new RTCPeerConnection(iceConfig);
 
-    // Log ALL ICE candidates
     webrtcPC.onicecandidate = (event) => {
         if (event.candidate) {
             console.log("ICE candidate:", event.candidate.candidate);
@@ -19,7 +20,6 @@ async function startWebRTC() {
         }
     };
 
-    // Handle incoming tracks (video AND audio from Pi)
     webrtcPC.ontrack = (event) => {
         console.log("*** RECEIVED TRACK:", event.track.kind);
         if (event.track.kind === 'video') {
@@ -58,20 +58,19 @@ async function startWebRTC() {
     };
 
     try {
-        // Get browser microphone
-        try {
-            const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            localStream.getAudioTracks().forEach(track => {
-                webrtcPC.addTrack(track, localStream);
-                console.log("Added browser mic track to peer connection");
-            });
-        } catch (micError) {
-            console.warn("Could not access microphone:", micError);
-        }
+        // Add a silent audio track as placeholder (so the server knows to expect audio later)
+        // This reserves the audio transceiver for telepresence
+        const silentCtx = new AudioContext();
+        const silentOsc = silentCtx.createOscillator();
+        const silentDest = silentCtx.createMediaStreamDestination();
+        silentOsc.connect(silentDest);
+        silentOsc.start();
+        const silentTrack = silentDest.stream.getAudioTracks()[0];
+        silentTrack.enabled = false; // muted
+        micSender = webrtcPC.addTrack(silentTrack, silentDest.stream);
+        console.log("Added silent placeholder audio track");
 
-        console.log("Creating offer...");
-
-// Force H264 codec
+        // Force H264 codec
         const videoTransceiver = webrtcPC.addTransceiver('video', { direction: 'recvonly' });
         const codecs = RTCRtpReceiver.getCapabilities('video').codecs;
         const h264Codecs = codecs.filter(c => c.mimeType === 'video/H264');
@@ -80,6 +79,7 @@ async function startWebRTC() {
             console.log("Forced H264 codec preference");
         }
 
+        console.log("Creating offer...");
         const offer = await webrtcPC.createOffer({
             offerToReceiveVideo: true,
             offerToReceiveAudio: true
@@ -123,13 +123,94 @@ async function startWebRTC() {
 
         const answer = await response.json();
         console.log("Received answer from server");
-        console.log("Answer SDP:", answer.sdp.substring(0, 200) + "...");
-
         await webrtcPC.setRemoteDescription(answer);
         console.log("Remote description set!");
 
     } catch (error) {
         console.error("!!! WebRTC ERROR:", error);
+    }
+}
+
+// ====== TELEPRESENCE TOGGLE ======
+async function startTelepresence() {
+    if (telepresenceActive) return;
+
+    try {
+        // Get real microphone
+        localMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const micTrack = localMicStream.getAudioTracks()[0];
+        console.log("Got mic:", micTrack.label);
+
+        // Replace silent track with real mic
+        if (micSender) {
+            await micSender.replaceTrack(micTrack);
+            console.log("Replaced silent track with real mic");
+        }
+
+        // Tell server to start playing incoming audio
+        await fetch('/telepresence/start', { method: 'POST' });
+
+        telepresenceActive = true;
+        updateTelepresenceButton();
+        console.log("=== TELEPRESENCE ACTIVE ===");
+
+    } catch (error) {
+        console.error("Telepresence error:", error);
+    }
+}
+
+async function stopTelepresence() {
+    if (!telepresenceActive) return;
+
+    try {
+        // Replace mic with silent track
+        if (micSender) {
+            const silentCtx = new AudioContext();
+            const silentOsc = silentCtx.createOscillator();
+            const silentDest = silentCtx.createMediaStreamDestination();
+            silentOsc.connect(silentDest);
+            silentOsc.start();
+            const silentTrack = silentDest.stream.getAudioTracks()[0];
+            silentTrack.enabled = false;
+            await micSender.replaceTrack(silentTrack);
+            console.log("Replaced mic with silent track");
+        }
+
+        // Stop local mic
+        if (localMicStream) {
+            localMicStream.getTracks().forEach(t => t.stop());
+            localMicStream = null;
+        }
+
+        // Tell server to stop playing audio
+        await fetch('/telepresence/stop', { method: 'POST' });
+
+        telepresenceActive = false;
+        updateTelepresenceButton();
+        console.log("=== TELEPRESENCE STOPPED ===");
+
+    } catch (error) {
+        console.error("Stop telepresence error:", error);
+    }
+}
+
+function toggleTelepresence() {
+    if (telepresenceActive) {
+        stopTelepresence();
+    } else {
+        startTelepresence();
+    }
+}
+
+function updateTelepresenceButton() {
+    const btn = document.getElementById('telepresence-btn');
+    if (!btn) return;
+    if (telepresenceActive) {
+        btn.textContent = '🎙️ End Telepresence';
+        btn.classList.add('active');
+    } else {
+        btn.textContent = '🎙️ Start Telepresence';
+        btn.classList.remove('active');
     }
 }
 
