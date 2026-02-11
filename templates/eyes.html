@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800, height=480, initial-scale=1.0, user-scalable=no">
+<title>CatBot Eyes</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 800px; height: 480px; overflow: hidden; background: #0a0a12;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Fredoka', sans-serif; cursor: none; user-select: none;
+  }
+  .face {
+    position: relative; width: 800px; height: 480px;
+    display: flex; align-items: center; justify-content: center; gap: 60px;
+  }
+  .face::before {
+    content: ''; position: absolute; width: 600px; height: 300px;
+    background: radial-gradient(ellipse, rgba(100, 200, 100, 0.06) 0%, transparent 70%);
+    border-radius: 50%; pointer-events: none;
+  }
+  .eye-container { position: relative; width: 200px; height: 220px; }
+  .eye {
+    position: absolute; width: 200px; height: 220px;
+    background: radial-gradient(ellipse at 35% 30%, #ffffff 0%, #e8edf5 60%, #c5cfe0 100%);
+    border-radius: 50% 50% 45% 45%; overflow: hidden;
+    box-shadow: inset 0 -8px 20px rgba(0,0,0,0.15), 0 0 40px rgba(100,200,100,0.15), 0 0 80px rgba(100,200,100,0.05);
+    transition: height 0.15s ease, border-radius 0.3s ease;
+  }
+  .iris {
+    position: absolute; width: 100px; height: 105px;
+    background: radial-gradient(circle at 40% 35%, #7dd87d 0%, #4caf50 30%, #2e7d32 60%, #1b5e20 100%);
+    border-radius: 50%; left: 50px; top: 58px;
+    transition: left 0.25s cubic-bezier(0.4,0,0.2,1), top 0.25s cubic-bezier(0.4,0,0.2,1), width 0.3s ease, height 0.3s ease;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .pupil {
+    position: absolute; width: 48px; height: 50px;
+    background: radial-gradient(circle at 45% 40%, #1a1a2e 0%, #000000 70%);
+    border-radius: 50%; left: 50%; top: 48%; transform: translate(-50%,-50%);
+    transition: width 0.3s ease, height 0.3s ease;
+  }
+  .shine {
+    position: absolute; width: 22px; height: 24px;
+    background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 70%);
+    border-radius: 50%; top: 18%; left: 28%; pointer-events: none;
+  }
+  .shine-small {
+    position: absolute; width: 10px; height: 11px;
+    background: radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 70%);
+    border-radius: 50%; top: 55%; left: 62%; pointer-events: none;
+  }
+  .eyelid-top {
+    position: absolute; width: 220px; height: 120px; background: #0a0a12;
+    top: -120px; left: -10px; border-radius: 0 0 50% 50%;
+    transition: top 0.12s ease-in; z-index: 10;
+  }
+  .eyelid-bottom {
+    position: absolute; width: 220px; height: 100px; background: #0a0a12;
+    bottom: -100px; left: -10px; border-radius: 50% 50% 0 0;
+    transition: bottom 0.2s ease; z-index: 10;
+  }
+  .eyebrow {
+    position: absolute; width: 160px; height: 22px; background: #0a0a12;
+    top: -15px; left: 20px; border-radius: 30px; z-index: 20;
+    transition: transform 0.3s ease, top 0.3s ease;
+  }
+  .eye-container.left .eyebrow { transform-origin: 80% 50%; }
+  .eye-container.right .eyebrow { transform-origin: 20% 50%; }
+  .blinking .eyelid-top { top: 50px !important; }
+  .happy .eye { height: 160px; border-radius: 50% 50% 45% 45%; }
+  .happy .eyelid-bottom { bottom: -40px; }
+  .happy .iris { top: 35px; }
+  .happy .eyebrow { top: -20px; }
+  .sad .eyelid-top { top: -60px; }
+  .sad .eye-container.left .eyebrow { transform: rotate(15deg); top: -8px; }
+  .sad .eye-container.right .eyebrow { transform: rotate(-15deg); top: -8px; }
+  .surprised .eye { height: 250px; width: 210px; border-radius: 50%; }
+  .surprised .iris { width: 90px; height: 90px; }
+  .surprised .pupil { width: 55px; height: 55px; }
+  .surprised .eyebrow { top: -30px; }
+  .angry .eye-container.left .eyebrow { transform: rotate(-20deg); top: 5px; }
+  .angry .eye-container.right .eyebrow { transform: rotate(20deg); top: 5px; }
+  .angry .eyelid-top { top: -80px; }
+  .angry .iris { width: 95px; height: 100px; }
+  .angry .pupil { width: 40px; height: 42px; }
+  .sleepy .eyelid-top { top: -30px; }
+  .sleepy .eyelid-bottom { bottom: -60px; }
+  .sleepy .eye { height: 180px; }
+  .sleepy .iris { top: 50px; }
+  .love .iris {
+    background: radial-gradient(circle at 40% 35%, #ff6b9d 0%, #e84393 30%, #c44569 60%, #a83253 100%);
+    width: 110px; height: 115px;
+  }
+  .love .pupil { width: 52px; height: 54px; }
+  .love .eye {
+    box-shadow: inset 0 -8px 20px rgba(0,0,0,0.15), 0 0 40px rgba(255,100,150,0.2), 0 0 80px rgba(255,100,150,0.08);
+  }
+  .skeptical .eye-container.left .eye { height: 180px; }
+  .skeptical .eye-container.left .eyelid-top { top: -80px; }
+  .skeptical .eye-container.left .eyebrow { transform: rotate(-10deg); top: 0px; }
+  .skeptical .eye-container.right .eyebrow { transform: rotate(5deg); top: -20px; }
+  .thinking .eye-container.right .iris { left: 80px; top: 30px; }
+  .thinking .eye-container.left .iris { left: 80px; top: 30px; }
+  .thinking .eye-container.left .eyebrow { transform: rotate(8deg); top: -20px; }
+  .status {
+    position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+    color: rgba(100, 200, 100, 0.3); font-size: 12px; font-weight: 400;
+    letter-spacing: 3px; text-transform: uppercase;
+  }
+</style>
+</head>
+<body>
+<div class="face" id="face">
+  <div class="eye-container left">
+    <div class="eyebrow"></div>
+    <div class="eye">
+      <div class="iris" id="iris-left">
+        <div class="pupil"></div>
+        <div class="shine"></div>
+        <div class="shine-small"></div>
+      </div>
+      <div class="eyelid-top"></div>
+      <div class="eyelid-bottom"></div>
+    </div>
+  </div>
+  <div class="eye-container right">
+    <div class="eyebrow"></div>
+    <div class="eye">
+      <div class="iris" id="iris-right">
+        <div class="pupil"></div>
+        <div class="shine"></div>
+        <div class="shine-small"></div>
+      </div>
+      <div class="eyelid-top"></div>
+      <div class="eyelid-bottom"></div>
+    </div>
+  </div>
+  <div class="status">catbot online</div>
+</div>
+<script>
+const face = document.getElementById('face');
+const irisLeft = document.getElementById('iris-left');
+const irisRight = document.getElementById('iris-right');
+const IRIS_RANGE_X = 35, IRIS_RANGE_Y = 25, IRIS_CENTER_X = 50, IRIS_CENTER_Y = 58;
+let targetX = 0, targetY = 0, currentX = 0, currentY = 0;
+function setGaze(normX, normY) { targetX = normX; targetY = normY; }
+function updateIris() {
+  currentX += (targetX - currentX) * 0.12;
+  currentY += (targetY - currentY) * 0.12;
+  const ox = currentX * IRIS_RANGE_X, oy = currentY * IRIS_RANGE_Y;
+  irisLeft.style.left = (IRIS_CENTER_X + ox) + 'px';
+  irisLeft.style.top = (IRIS_CENTER_Y + oy) + 'px';
+  irisRight.style.left = (IRIS_CENTER_X + ox) + 'px';
+  irisRight.style.top = (IRIS_CENTER_Y + oy) + 'px';
+  requestAnimationFrame(updateIris);
+}
+updateIris();
+let blinkTimeout;
+function blink() {
+  face.classList.add('blinking');
+  setTimeout(() => face.classList.remove('blinking'), 150);
+  if (Math.random() < 0.2) {
+    setTimeout(() => {
+      face.classList.add('blinking');
+      setTimeout(() => face.classList.remove('blinking'), 130);
+    }, 300);
+  }
+  scheduleNextBlink();
+}
+function scheduleNextBlink() {
+  blinkTimeout = setTimeout(blink, 2000 + Math.random() * 4000);
+}
+scheduleNextBlink();
+const emotions = ['', 'happy', 'thinking', 'skeptical'];
+let currentEmotion = '';
+function setEmotion(emotion) {
+  face.classList.remove('happy','sad','surprised','angry','sleepy','love','skeptical','thinking');
+  if (emotion) face.classList.add(emotion);
+  currentEmotion = emotion;
+}
+function randomGlance() {
+  const g = [
+    {x:0,y:0},{x:-0.6,y:0},{x:0.6,y:0},{x:-0.3,y:-0.4},
+    {x:0.3,y:-0.4},{x:0,y:0.3},{x:-0.8,y:0.2},{x:0.8,y:0.2}
+  ];
+  const gl = g[Math.floor(Math.random() * g.length)];
+  setGaze(gl.x, gl.y);
+}
+let idlePhase = 0;
+function idleBehavior() {
+  idlePhase++;
+  if (idlePhase % 2 === 0) randomGlance();
+  if (Math.random() < 0.3) setGaze(0, 0);
+  if (idlePhase % 8 === 0 && Math.random() < 0.3) {
+    const e = emotions[Math.floor(Math.random() * emotions.length)];
+    setEmotion(e);
+    if (e) setTimeout(() => setEmotion(''), 3000 + Math.random() * 3000);
+  }
+  setTimeout(idleBehavior, 1500 + Math.random() * 2500);
+}
+setTimeout(idleBehavior, 1000);
+(function startup() {
+  face.classList.add('blinking');
+  setTimeout(() => {
+    face.classList.remove('blinking');
+    setTimeout(() => setGaze(-0.5, 0), 500);
+    setTimeout(() => setGaze(0.5, 0), 1200);
+    setTimeout(() => setGaze(0, 0), 1900);
+    setTimeout(() => { setEmotion('happy'); setTimeout(() => setEmotion(''), 2000); }, 2200);
+  }, 800);
+})();
+window.CatBotEyes = {
+  setEmotion, setGaze, blink,
+  lookLeft: () => setGaze(-0.7, 0), lookRight: () => setGaze(0.7, 0),
+  lookUp: () => setGaze(0, -0.6), lookDown: () => setGaze(0, 0.4),
+  lookCenter: () => setGaze(0, 0),
+  happy: () => setEmotion('happy'), sad: () => setEmotion('sad'),
+  surprised: () => setEmotion('surprised'), angry: () => setEmotion('angry'),
+  sleepy: () => setEmotion('sleepy'), love: () => setEmotion('love'),
+  neutral: () => setEmotion(''), thinking: () => setEmotion('thinking'),
+  skeptical: () => setEmotion('skeptical'),
+};
+</script>
+</body>
+</html>
