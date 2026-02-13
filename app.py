@@ -1,5 +1,6 @@
 # import base_ctrl library
 from base_ctrl import BaseController
+from conversation import add_conversation_routes, start_conversation_engine
 import threading
 import yaml, os
 
@@ -925,5 +926,7 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Could not launch eyes: {e}")
     threading.Thread(target=launch_eyes, daemon=True).start()
+    # Start conversation AI engine
+    start_conversation_engine()
 
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
