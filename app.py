@@ -251,6 +251,10 @@ def generate_frames():
 
 
 # Route to render the HTML template
+@app.route("/eyes")
+def eyes():
+    return render_template("eyes.html")
+
 @app.route('/')
 def index():
     audio_ctrl.play_random_audio("connected", False)
@@ -865,4 +869,23 @@ if __name__ == "__main__":
     cmd_on_boot()
 
     # run the main web app
+    # Launch eyes on Pi screen
+    import subprocess
+    import os
+    def launch_eyes():
+        import time
+        time.sleep(3)  # Wait for Flask to be ready
+        env = os.environ.copy()
+        env["DISPLAY"] = ":0"
+        try:
+            subprocess.Popen([
+                "chromium-browser",
+                "--start-fullscreen", "--noerrdialogs", "--disable-infobars",
+                "--no-first-run", "--app=http://localhost:5000/eyes"
+            ], env=env)
+            print(">>> Eyes launched on Pi screen")
+        except Exception as e:
+            print(f"Could not launch eyes: {e}")
+    threading.Thread(target=launch_eyes, daemon=True).start()
+
     socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
