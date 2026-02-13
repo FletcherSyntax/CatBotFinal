@@ -1,8 +1,10 @@
-// WebRTC with telepresence toggle
+// WebRTC with telepresence toggle (audio + video)
 let webrtcPC = null;
 let telepresenceActive = false;
 let localMicStream = null;
+let localCamStream = null;
 let micSender = null;
+let videoSender = null;
 
 async function startWebRTC() {
     console.log("=== Starting WebRTC ===");
@@ -58,19 +60,30 @@ async function startWebRTC() {
     };
 
     try {
-        // Add a silent audio track as placeholder (so the server knows to expect audio later)
-        // This reserves the audio transceiver for telepresence
+        // Silent audio placeholder
         const silentCtx = new AudioContext();
         const silentOsc = silentCtx.createOscillator();
         const silentDest = silentCtx.createMediaStreamDestination();
         silentOsc.connect(silentDest);
         silentOsc.start();
         const silentTrack = silentDest.stream.getAudioTracks()[0];
-        silentTrack.enabled = false; // muted
+        silentTrack.enabled = false;
         micSender = webrtcPC.addTrack(silentTrack, silentDest.stream);
         console.log("Added silent placeholder audio track");
 
-        // Force H264 codec
+        // Black video placeholder
+        const blackCanvas = document.createElement('canvas');
+        blackCanvas.width = 640;
+        blackCanvas.height = 480;
+        const bctx = blackCanvas.getContext('2d');
+        bctx.fillStyle = 'black';
+        bctx.fillRect(0, 0, 640, 480);
+        const blackStream = blackCanvas.captureStream(1);
+        const blackTrack = blackStream.getVideoTracks()[0];
+        videoSender = webrtcPC.addTrack(blackTrack, blackStream);
+        console.log("Added black placeholder video track");
+
+        // Force H264 codec for Pi->Browser video
         const videoTransceiver = webrtcPC.addTransceiver('video', { direction: 'recvonly' });
         const codecs = RTCRtpReceiver.getCapabilities('video').codecs;
         const h264Codecs = codecs.filter(c => c.mimeType === 'video/H264');
@@ -136,18 +149,35 @@ async function startTelepresence() {
     if (telepresenceActive) return;
 
     try {
-        // Get real microphone
-        localMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const micTrack = localMicStream.getAudioTracks()[0];
-        console.log("Got mic:", micTrack.label);
+        // Get real microphone AND webcam
+        localCamStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: { width: 640, height: 480 }
+        });
 
-        // Replace silent track with real mic
+        const micTrack = localCamStream.getAudioTracks()[0];
+        const camTrack = localCamStream.getVideoTracks()[0];
+        console.log("Got mic:", micTrack.label);
+        console.log("Got camera:", camTrack.label);
+
+        // Replace placeholders with real tracks
         if (micSender) {
             await micSender.replaceTrack(micTrack);
             console.log("Replaced silent track with real mic");
         }
+        if (videoSender) {
+            await videoSender.replaceTrack(camTrack);
+            console.log("Replaced black video with webcam");
+        }
 
-        // Tell server to start playing incoming audio
+        // Show local preview
+        const preview = document.getElementById('local-preview');
+        if (preview) {
+            preview.srcObject = new MediaStream([camTrack]);
+            preview.style.display = 'block';
+        }
+
+        // Tell server to start telepresence
         await fetch('/telepresence/start', { method: 'POST' });
 
         telepresenceActive = true;
@@ -163,7 +193,7 @@ async function stopTelepresence() {
     if (!telepresenceActive) return;
 
     try {
-        // Replace mic with silent track
+        // Replace with placeholders
         if (micSender) {
             const silentCtx = new AudioContext();
             const silentOsc = silentCtx.createOscillator();
@@ -175,14 +205,33 @@ async function stopTelepresence() {
             await micSender.replaceTrack(silentTrack);
             console.log("Replaced mic with silent track");
         }
-
-        // Stop local mic
-        if (localMicStream) {
-            localMicStream.getTracks().forEach(t => t.stop());
-            localMicStream = null;
+        if (videoSender) {
+            const blackCanvas = document.createElement('canvas');
+            blackCanvas.width = 640;
+            blackCanvas.height = 480;
+            const bctx = blackCanvas.getContext('2d');
+            bctx.fillStyle = 'black';
+            bctx.fillRect(0, 0, 640, 480);
+            const blackStream = blackCanvas.captureStream(1);
+            const blackTrack = blackStream.getVideoTracks()[0];
+            await videoSender.replaceTrack(blackTrack);
+            console.log("Replaced webcam with black video");
         }
 
-        // Tell server to stop playing audio
+        // Stop local streams
+        if (localCamStream) {
+            localCamStream.getTracks().forEach(t => t.stop());
+            localCamStream = null;
+        }
+
+        // Hide local preview
+        const preview = document.getElementById('local-preview');
+        if (preview) {
+            preview.srcObject = null;
+            preview.style.display = 'none';
+        }
+
+        // Tell server to stop telepresence
         await fetch('/telepresence/stop', { method: 'POST' });
 
         telepresenceActive = false;
@@ -206,10 +255,10 @@ function updateTelepresenceButton() {
     const btn = document.getElementById('telepresence-btn');
     if (!btn) return;
     if (telepresenceActive) {
-        btn.textContent = '🎙️ End Telepresence';
+        btn.textContent = '📹 End Telepresence';
         btn.classList.add('active');
     } else {
-        btn.textContent = '🎙️ Start Telepresence';
+        btn.textContent = '📹 Start Telepresence';
         btn.classList.remove('active');
     }
 }

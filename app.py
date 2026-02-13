@@ -268,6 +268,7 @@ def get_config():
 
 # Telepresence state
 app.config["telepresence_active"] = False
+app.config["telepresence_frame"] = None
 
 @app.route("/telepresence/start", methods=["POST"])
 def telepresence_start():
@@ -278,8 +279,26 @@ def telepresence_start():
 @app.route("/telepresence/stop", methods=["POST"])
 def telepresence_stop():
     app.config["telepresence_active"] = False
+    app.config["telepresence_frame"] = None
     print(">>> TELEPRESENCE STOPPED - browser audio muted")
     return jsonify({"status": "ok", "telepresence": False})
+
+@app.route("/telepresence/status")
+def telepresence_status():
+    return jsonify({"active": app.config.get("telepresence_active", False)})
+
+@app.route("/telepresence/video")
+def telepresence_video():
+    import time as time_mod
+    from flask import Response
+    def generate():
+        while app.config.get('telepresence_active', False):
+            frame = app.config.get('telepresence_frame')
+            if frame:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            time_mod.sleep(0.033)
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/ice-config')
 def ice_config():
@@ -364,10 +383,29 @@ async def offer_async():
     @pc.on("connectionstatechange")
     async def on_connection_state_change():
         print(f">>> SERVER CONNECTION STATE: {pc.connectionState}")
-    # Handle incoming audio from browser
+    # Handle incoming audio and video from browser
     @pc.on("track")
     async def on_track(track):
         print(f"Received {track.kind} track from browser")
+        if track.kind == "video":
+            async def receive_video():
+                count = 0
+                try:
+                    while True:
+                        frame = await track.recv()
+                        count += 1
+                        if app.config.get('telepresence_active', False):
+                            img = frame.to_ndarray(format="bgr24")
+                            ret, jpeg = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                            if ret:
+                                app.config['telepresence_frame'] = jpeg.tobytes()
+                        if count <= 3:
+                            print(f"Browser video frame {count}: {frame.width}x{frame.height}")
+                except Exception as e:
+                    print(f"Browser video ended after {count} frames: {e}")
+            import asyncio as aio_v
+            aio_v.ensure_future(receive_video())
+            print("Browser video track ready")
         if track.kind == "audio":
             # Store track reference for telepresence toggle
             app.config['browser_audio_track'] = track
