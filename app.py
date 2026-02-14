@@ -51,6 +51,7 @@ import cv2  # Add this line
 import audio_ctrl
 import os_info
 import wifi_ctrl
+import ssl
 
 # Get system info
 UPLOAD_FOLDER = thisPath + '/sounds/others'
@@ -878,9 +879,10 @@ def cmd_on_boot():
     set_version(f['base_config']['main_type'], f['base_config']['module_type'])
 
 
-
 # Run the Flask app
 if __name__ == "__main__":
+
+    
     # lights off
     base.lights_ctrl(255, 255)
     
@@ -929,7 +931,15 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Could not launch eyes: {e}")
     threading.Thread(target=launch_eyes, daemon=True).start()
+    
     # Start conversation AI engine
     start_conversation_engine()
 
-    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    # Create SSL context for HTTPS
+    ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ssl_context.load_cert_chain(
+        '/home/ws/ugv_rpi/catbot.tailaa6986.ts.net.crt',
+        '/home/ws/ugv_rpi/catbot.tailaa6986.ts.net.key'
+    )
+
+    socketio.run(app, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True, ssl_context=ssl_context)
