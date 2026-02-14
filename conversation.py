@@ -30,7 +30,7 @@ PICOVOICE_ACCESS_KEY = os.environ.get("PICOVOICE_ACCESS_KEY", "")
 WAKE_WORD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hey-catbot.ppn")
 
 # Gemini
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyD3svMhtMnRg5PMP6k3u9_IqXEm20Dj3TQ")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
 GEMINI_VOICE = "Algieba"
 
