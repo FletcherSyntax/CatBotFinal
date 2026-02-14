@@ -26,7 +26,7 @@ from google.genai import types
 # ============ CONFIGURATION ============
 
 # Picovoice
-PICOVOICE_ACCESS_KEY = os.environ.get("PICOVOICE_ACCESS_KEY", "17RI8tdSl8Lvcy3jwCSiZjt2UIPapvZ1SaCOUuo2Uaon5CUYOXMHLg==")
+PICOVOICE_ACCESS_KEY = os.environ.get("PICOVOICE_ACCESS_KEY", "")
 WAKE_WORD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hey-catbot.ppn")
 
 # Gemini
