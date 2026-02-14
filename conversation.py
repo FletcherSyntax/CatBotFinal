@@ -32,7 +32,7 @@ WAKE_WORD_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "hey-c
 # Gemini
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "AIzaSyD3svMhtMnRg5PMP6k3u9_IqXEm20Dj3TQ")
 GEMINI_MODEL = "gemini-2.5-flash-native-audio-preview-12-2025"
-GEMINI_VOICE = "Despina"
+GEMINI_VOICE = "Algieba"
 
 # Audio
 MIC_SAMPLE_RATE = 16000
@@ -174,11 +174,31 @@ def wake_word_loop():
             
             if keyword_index >= 0:
                 print("\n*** WAKE WORD DETECTED! ***")
-                # Play activation sound in background
-                threading.Thread(target=play_activation_sound, daemon=True).start()
-                # Start conversation
-                threading.Thread(target=lambda: asyncio.run(gemini_conversation()), 
-                               daemon=True).start()
+                # Close wake word mic before starting conversation
+                mic_stream.close()
+                pa.terminate()
+                # Play activation sound
+                play_activation_sound()
+                # Run conversation (blocks until done)
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(gemini_conversation())
+                    loop.close()
+                except Exception as e:
+                    print(f"!!! Conversation error: {e}")
+                    import traceback
+                    traceback.print_exc()
+                # Re-open mic for wake word detection
+                pa = pyaudio.PyAudio()
+                mic_stream = pa.open(
+                    format=pyaudio.paInt16,
+                    channels=1,
+                    rate=porcupine.sample_rate,
+                    input=True,
+                    frames_per_buffer=porcupine.frame_length
+                )
+                print("Wake word listener resumed")
     
     except KeyboardInterrupt:
         print("\nStopping wake word listener...")
@@ -231,9 +251,11 @@ async def gemini_conversation():
                 while conversation_active:
                     try:
                         data = await asyncio.to_thread(
-                            mic_stream.read, CHUNK_SIZE, 
-                            # keyword arg for exception_on_overflow
+                            mic_stream.read, CHUNK_SIZE,
                         )
+                        # Don't send mic audio while speaking (prevents echo/barge-in)
+                        if state == ConversationState.SPEAKING:
+                            continue
                         await session.send_realtime_input(
                             audio=types.Blob(data=data, mime_type="audio/pcm;rate=16000")
                         )
@@ -282,9 +304,13 @@ async def gemini_conversation():
             
             # Task 3: Monitor silence timeout
             async def monitor_timeout():
-                nonlocal conversation_active
+                nonlocal conversation_active, last_activity
                 while conversation_active:
                     await asyncio.sleep(1)
+                    # Don't timeout while Gemini is speaking
+                    if state == ConversationState.SPEAKING:
+                        last_activity = time.time()
+                        continue
                     elapsed = time.time() - last_activity
                     if elapsed > SILENCE_TIMEOUT:
                         print(f"\n  [Silence timeout after {SILENCE_TIMEOUT}s]")

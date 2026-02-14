@@ -271,6 +271,9 @@ def get_config():
 app.config["telepresence_active"] = False
 app.config["telepresence_frame"] = None
 
+# Conversation AI routes
+add_conversation_routes(app)
+
 @app.route("/telepresence/start", methods=["POST"])
 def telepresence_start():
     app.config["telepresence_active"] = True
