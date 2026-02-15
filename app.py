@@ -309,15 +309,7 @@ def telepresence_video():
 def ice_config():
     return jsonify({
         'iceServers': [
-            {'urls': 'stun:stun.l.google.com:19302'},
-            {
-                'urls': [
-                    f'turn:{TURN_IP}:3478',
-                    f'turn:{TURN_IP}:3478?transport=tcp'
-                ],
-                'username': TURN_USER,
-                'credential': TURN_PASS
-            }
+            {'urls': 'stun:stun.l.google.com:19302'}
         ]
     })
 
