@@ -925,7 +925,7 @@ if __name__ == "__main__":
             subprocess.Popen([
                 "chromium-browser",
                 "--start-fullscreen", "--noerrdialogs", "--disable-infobars",
-                "--no-first-run", "--app=http://localhost:5000/eyes"
+                "--no-first-run", "--ignore-certificate-errors", "--disable-infobars", "--test-type", "--app=https://localhost:5000/eyes"
             ], env=env)
             print(">>> Eyes launched on Pi screen")
         except Exception as e:

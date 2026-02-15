@@ -584,10 +584,10 @@ function removeAllIcoClass(ElName){
     }
 }
 
-var socketJson = io('http://' + location.host + '/json');
+var socketJson = io(location.protocol + '//' + location.host + '/json');
 socketJson.emit('json', {'T':1,'L':0,'R':0})
 
-var socket = io('http://' + location.host + '/ctrl');
+var socket = io(location.protocol + '//' + location.host + '/ctrl');
 socket.emit('request_data');
 
 var light_mode = 0;
