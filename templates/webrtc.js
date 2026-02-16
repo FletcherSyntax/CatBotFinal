@@ -152,7 +152,7 @@ async function startTelepresence() {
         // Get real microphone AND webcam
         localCamStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
-            video: { width: 640, height: 480 }
+            video: { width: 1280, height: 720 }
         });
 
         const micTrack = localCamStream.getAudioTracks()[0];

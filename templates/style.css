@@ -56,13 +56,19 @@ main {
 }
 .video{
     width: 639px;
-    height: 480px;
+    height: 520px;
     overflow: hidden;
 }
 .video img{
     width: 640px;
-    height: 480px;
+    height: auto;
     border-radius: 4px;
+}
+.video video{
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 4px;
+    object-fit: fill !important;  /* Change to 'fill' to make it use full dimensions */
 }
 .feed{
     color: #4FF5C0;
@@ -74,8 +80,8 @@ main {
 .video_feed{position: relative;}
 .video_feed > div{
     position: absolute;
-    width: 600px;
-    height: 440px;
+    width: 640px;
+    height: 480px;
     left: 20px;
     top: 20px;
 }
