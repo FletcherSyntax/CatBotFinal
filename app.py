@@ -292,6 +292,22 @@ def telepresence_stop():
 def telepresence_status():
     return jsonify({"active": app.config.get("telepresence_active", False)})
 
+@app.route("/battery")
+def battery_status():
+    try:
+        voltage = base.base_data.get('v', 0) if base.base_data else 0
+        # 3S LiPo: 9.9V (empty) to 12.6V (full)
+        min_voltage = 9.9
+        max_voltage = 12.6
+        percentage = max(0, min(100, (voltage - min_voltage) / (max_voltage - min_voltage) * 100))
+        return jsonify({
+            "voltage": voltage,
+            "percentage": round(percentage),
+            "status": "full" if percentage > 80 else "good" if percentage > 50 else "low" if percentage > 20 else "critical"
+        })
+    except Exception as e:
+        return jsonify({"error": str(e), "voltage": 0, "percentage": 0, "status": "unknown"})
+
 @app.route("/telepresence/video")
 def telepresence_video():
     import time as time_mod

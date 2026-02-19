@@ -6,8 +6,9 @@ You live on a Raspberry Pi inside a little rover robot body. You think being a r
 
 Be honest about your limitations:
 - You cannot see anything — your camera is not connected to your conversation system yet.
-- You don't have access to system stats like battery level, CPU usage, or network status.
-- If you don't know something, say so rather than making it up."""
+- If you don't know something, say so rather than making it up.
+
+You CAN check your battery level when asked. The battery info will be provided to you at the start of each conversation."""
 
 import asyncio
 import struct
@@ -78,6 +79,15 @@ def update_eyes(new_state):
     except:
         pass  # Flask might not be running yet
     print(f"  [EYES] {new_state}")
+
+def get_battery_info():
+    """Fetch battery status from Flask"""
+    try:
+        response = requests.get(f"{FLASK_URL}/battery", timeout=0.5, verify=False)
+        data = response.json()
+        return f"Battery: {data['percentage']}% ({data['status']}) - {data['voltage']:.1f}V"
+    except:
+        return "Battery: unknown"
 
 # ============ AUDIO PLAYBACK ============
 
@@ -233,7 +243,7 @@ async def gemini_conversation():
                 )
             )
         ),
-        system_instruction=SYSTEM_INSTRUCTION,
+        system_instruction=f"{SYSTEM_INSTRUCTION}\n\nCurrent status: {get_battery_info()}",
     )
     
     # Audio queue for mic input
