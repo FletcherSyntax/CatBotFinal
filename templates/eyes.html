@@ -223,11 +223,13 @@ window.CatBotEyes = {
   skeptical: () => setEmotion('skeptical'),
 };
 </script>
+
 <!-- Telepresence video overlay -->
-<div id="telepresence-overlay" style="display:none; position:absolute; top:0; left:0; width:800px; height:480px; background:#000; z-index:100;">
-  <img id="telepresence-video" style="width:800px; height:480px; object-fit:cover;" />
+<div id="telepresence-overlay" style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:#000; z-index:100; overflow:hidden;">
+  <img id="telepresence-video" style="width:100%; height:100%; object-fit:contain;" />
   <div style="position:absolute; bottom:10px; left:50%; transform:translateX(-50%); color:rgba(255,255,255,0.4); font-size:11px; letter-spacing:2px; text-transform:uppercase;">telepresence active</div>
 </div>
+
 <script>
 // ====== CONVERSATION STATE REACTIONS ======
 let currentConvState = 'idle';

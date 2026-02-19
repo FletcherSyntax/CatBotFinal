@@ -46,7 +46,7 @@ MIC_CHANNELS = 1
 CHUNK_SIZE = 1024
 
 # Behavior
-SILENCE_TIMEOUT = 5.0  # seconds of silence before ending conversation
+SILENCE_TIMEOUT = 10.0  # seconds of silence before ending conversation
 FLASK_URL = "https://localhost:5000"
 
 # CatBot personality
@@ -276,6 +276,8 @@ async def gemini_conversation():
                 # Task 1: Stream mic audio to Gemini
                 async def send_audio():
                     nonlocal last_activity, conversation_active
+                    chunks_sent = 0
+                    chunks_skipped = 0
                     while conversation_active:
                         try:
                             # Non-blocking get with asyncio
@@ -288,11 +290,16 @@ async def gemini_conversation():
                             
                             # Don't send mic audio while speaking (prevents echo/barge-in)
                             if state == ConversationState.SPEAKING:
+                                chunks_skipped += 1
                                 continue
                             
                             await session.send_realtime_input(
                                 audio=types.Blob(data=data, mime_type="audio/pcm;rate=16000")
                             )
+                            last_activity = time.time()  # Reset timeout while user is speaking
+                            chunks_sent += 1
+                            if chunks_sent % 50 == 0:
+                                print(f"  [MIC] Sent {chunks_sent} chunks, skipped {chunks_skipped}")
                         except Exception as e:
                             if conversation_active:
                                 print(f"Send audio error: {e}")
