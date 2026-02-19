@@ -1118,48 +1118,31 @@ function readGamepad() {
       // logButtons(gp);
       // logAxes(gp);
 
-      // === RIGHT TRIGGER FOR SPEED ===
-      // RT is typically button 7 (digital) or axes[5] (analog)
-      // Some controllers use axes[4] or axes[5] for triggers
-      // We'll try button 7's value first (0-1 analog), fallback to axes
-      var triggerValue = gp.buttons[7] ? gp.buttons[7].value : 0;
-      
-      // If trigger has no analog value, check axes (some controllers put RT on axes[5])
-      if (triggerValue === 0 && gp.axes.length > 5) {
-        // Axes triggers often range from -1 (released) to 1 (pressed)
-        triggerValue = (gp.axes[5] + 1) / 2; // Normalize to 0-1
-      }
-      
-      // Apply dead zone
-      if (triggerValue < 0.05) {
-        triggerValue = 0;
-      }
-      
-      // Scale speed by trigger (0 = no movement, 1 = max_speed)
-      var currentMaxSpeed = triggerValue * max_speed;
-
-      // === RIGHT JOYSTICK FOR STEERING ===
-      // Right stick is typically axes[2] (X) and axes[3] (Y)
+      // === RIGHT JOYSTICK FOR STEERING (tank-style) ===
+      // Right stick: axes[2] (X) and axes[3] (Y)
       var stickY = -gp.axes[3]; // Forward/back (inverted so up = forward)
-      var stickX = -gp.axes[2]; // Left/right turn
+      var stickX = gp.axes[2];  // Left/right turn
       
       // Apply dead zones
-      if (Math.abs(stickY) < 0.15) {
-        stickY = 0;
-      }
-      if (Math.abs(stickX) < 0.15) {
-        stickX = 0;
-      }
+      if (Math.abs(stickY) < 0.15) stickY = 0;
+      if (Math.abs(stickX) < 0.15) stickX = 0;
 
-      // Calculate movement: stickY controls forward/back, stickX controls turning
-      gp_x = stickY * currentMaxSpeed;
-      gp_z = stickX * gp_turnning;
+      // Convert to tank drive (L/R motor speeds)
+      // Joystick position directly controls speed (no trigger needed)
+      // Cap at 0.5 to avoid motor stall
+      var maxMotorSpeed = 0.5;
+      var leftMotor = (stickY + stickX) * maxMotorSpeed;
+      var rightMotor = (stickY - stickX) * maxMotorSpeed;
+      
+      // Clamp to maxMotorSpeed
+      leftMotor = Math.max(-maxMotorSpeed, Math.min(maxMotorSpeed, leftMotor));
+      rightMotor = Math.max(-maxMotorSpeed, Math.min(maxMotorSpeed, rightMotor));
 
-      // Send movement command if changed
-      if (gp_x != last_gp_x || gp_z != last_gp_z) {
-        cmdJsonCmd({"T":13,"X":gp_x,"Z":gp_z});
-        last_gp_x = gp_x;
-        last_gp_z = gp_z;
+      // Send movement command if changed (using same format as on-screen buttons)
+      if (leftMotor != last_gp_x || rightMotor != last_gp_z) {
+        cmdJsonCmd({"T":cmd_movition_ctrl,"L":leftMotor,"R":rightMotor});
+        last_gp_x = leftMotor;
+        last_gp_z = rightMotor;
       }
 
       // === A BUTTON (button 0) - TAKE PICTURE ===
