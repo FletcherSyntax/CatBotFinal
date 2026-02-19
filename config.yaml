@@ -3,8 +3,8 @@ args_config:
   arm_default_r: 0
   arm_default_z: 24
   max_rate: 1.0
-  max_speed: 0.8
-  mid_rate: 0.5
+  max_speed: 0.75
+  mid_rate: 0.66
   min_rate: 0.3
   slow_speed: 0.3
 audio_config:

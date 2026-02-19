@@ -1065,10 +1065,6 @@ document.getElementById('commandInput').addEventListener('blur', function() {
 });
 
 
-
-
-
-
 // gamepad ctrl functions
 var gp_x = 0.00;
 var gp_z = 0.00;
@@ -1083,6 +1079,7 @@ var last_gp_rt2 = false;
 
 var last_gp_record = false;
 var last_gp_picture = false;
+var last_gp_telepresence = false;
 
 var gp_pt_x = 0;
 var gp_pt_y = 0;
@@ -1109,7 +1106,6 @@ function logButtons(gamepad) {
 function logAxes(gamepad) {
   gamepad.axes.forEach((axis, index) => {
     console.log(`axis ${index}: ${axis}`);
-
   });
 }
 
@@ -1118,164 +1114,93 @@ function readGamepad() {
   for (var i = 0; i < gamepads.length; i++) {
     var gp = gamepads[i];
     if(gp) {
+      // Uncomment to debug your controller mapping:
       // logButtons(gp);
       // logAxes(gp);
-      gp_x = - gp.axes[1] * max_speed;
-      gp_z = - gp.axes[0] * gp_turnning;
-      if(Math.abs(gp_x) < 0.02){
-        gp_x = 0;
+
+      // === RIGHT TRIGGER FOR SPEED ===
+      // RT is typically button 7 (digital) or axes[5] (analog)
+      // Some controllers use axes[4] or axes[5] for triggers
+      // We'll try button 7's value first (0-1 analog), fallback to axes
+      var triggerValue = gp.buttons[7] ? gp.buttons[7].value : 0;
+      
+      // If trigger has no analog value, check axes (some controllers put RT on axes[5])
+      if (triggerValue === 0 && gp.axes.length > 5) {
+        // Axes triggers often range from -1 (released) to 1 (pressed)
+        triggerValue = (gp.axes[5] + 1) / 2; // Normalize to 0-1
       }
-      if(Math.abs(gp_z) < 0.02){
-        gp_z = 0;
+      
+      // Apply dead zone
+      if (triggerValue < 0.05) {
+        triggerValue = 0;
       }
-      // console.log(`X: ${gp_x} Z: ${gp_z}`);
-      if(gp_x != last_gp_x || gp_z != last_gp_z){
+      
+      // Scale speed by trigger (0 = no movement, 1 = max_speed)
+      var currentMaxSpeed = triggerValue * max_speed;
+
+      // === RIGHT JOYSTICK FOR STEERING ===
+      // Right stick is typically axes[2] (X) and axes[3] (Y)
+      var stickY = -gp.axes[3]; // Forward/back (inverted so up = forward)
+      var stickX = -gp.axes[2]; // Left/right turn
+      
+      // Apply dead zones
+      if (Math.abs(stickY) < 0.15) {
+        stickY = 0;
+      }
+      if (Math.abs(stickX) < 0.15) {
+        stickX = 0;
+      }
+
+      // Calculate movement: stickY controls forward/back, stickX controls turning
+      gp_x = stickY * currentMaxSpeed;
+      gp_z = stickX * gp_turnning;
+
+      // Send movement command if changed
+      if (gp_x != last_gp_x || gp_z != last_gp_z) {
         cmdJsonCmd({"T":13,"X":gp_x,"Z":gp_z});
         last_gp_x = gp_x;
         last_gp_z = gp_z;
       }
 
-      if(last_gp_record != gp.buttons[9].pressed){
+      // === A BUTTON (button 0) - TAKE PICTURE ===
+      if (last_gp_picture != gp.buttons[0].pressed) {
+        if (gp.buttons[0].pressed) {
+          console.log("Gamepad: Taking picture");
+          cmdSend(pic_cap, 0, 0);
+        }
+        last_gp_picture = gp.buttons[0].pressed;
+      }
+
+      // === Y BUTTON (button 3) - TOGGLE TELEPRESENCE ===
+      if (last_gp_telepresence != gp.buttons[3].pressed) {
+        if (gp.buttons[3].pressed) {
+          console.log("Gamepad: Toggling telepresence");
+          if (typeof toggleTelepresence === 'function') {
+            toggleTelepresence();
+          }
+        }
+        last_gp_telepresence = gp.buttons[3].pressed;
+      }
+
+      // === BUTTON 9 (Start/Menu) - TOGGLE RECORDING ===
+      if (last_gp_record != gp.buttons[9].pressed) {
         if (gp.buttons[9].pressed) {
-            if (!isRecording) {
-                cmdSend(vid_sta,0,0);
-                $(document).css("color", "#FF8C8C");
-                $(document).removeClass("video_btn_record");
-                $(document).addClass("video_btn_stop");
-                isRecording = true;
-                $(document).text("00:00");
-                timerInterval = setInterval(updateTimer, 1000);
-            } else {
-                cmdSend(vid_end,0,0);
-                $(document).removeClass("video_btn_stop");
-                $(document).addClass("video_btn_record");
-                $(document).text(originalText);
-                isRecording = false;
-                clearInterval(timerInterval);
-                seconds = 0;
-                minutes = 0;
-                $(document).css("color", "");
-                updateVideoList();
-            }
+          if (!isRecording) {
+            cmdSend(vid_sta, 0, 0);
+            isRecording = true;
+          } else {
+            cmdSend(vid_end, 0, 0);
+            isRecording = false;
+          }
         }
         last_gp_record = gp.buttons[9].pressed;
       }
-
-      if(last_gp_picture != gp.buttons[8].pressed){
-        if (gp.buttons[8].pressed) {
-            cmdSend(pic_cap,0,0);
-        }
-        last_gp_picture = gp.buttons[8].pressed;
-      }
-
-      if (module_type != 1) {
-          if(last_gp_rt1 != gp.buttons[5].pressed){
-            last_gp_rt1 = gp.buttons[5].pressed;
-            gp_pt_x = 0;
-            gp_pt_y = 0;
-            cmdJsonCmd({"T":cmd_gimbal_ctrl,"X":gp_pt_x,"Y":gp_pt_y,"SPD":0,"ACC":0});
-            last_gp_pt_x = gp_pt_x;
-            last_gp_pt_y = gp_pt_y;
-
-            RotateAngle = document.getElementById("Pan").innerHTML = gp_pt_x.toFixed(2);
-            var panScale = document.getElementById("pan_scale");
-            panScale.style.transform = `rotate(${-RotateAngle}deg)`;
-
-            var tiltNum = document.getElementById("Tilt");
-            var tiltNumPanel = tiltNum.getBoundingClientRect();
-            var tiltNumMove = tiltNum.innerHTML = gp_pt_y.toFixed(2);;
-
-            var pointer = document.getElementById('tilt_scale_pointer');
-            var tiltScaleOut = document.getElementById('tilt_scale');
-            var tiltScaleBase = tiltScaleOut.getBoundingClientRect();
-            var tiltScalediv = document.getElementById('tilt_scalediv');
-            var tiltScaleDivBase = tiltScalediv.getBoundingClientRect();
-            var pointerMoveY = tiltScaleBase.height/135;
-            pointer.style.transform = `translate(${tiltScaleDivBase.width}px, ${pointerMoveY*(90 - tiltNumMove)-tiltNumPanel.height/2}px)`;
-          }
-
-          if(last_gp_rt2 != gp.buttons[7].pressed){
-            last_gp_rt2 = gp.buttons[7].pressed;
-            cmdSend(head_ct, 0, 0);
-          }
-
-
-          if(gp.buttons[0].pressed){
-            gp_pt_y -= gp_pt_speed;
-            if(gp_pt_y < -30){
-                gp_pt_y = -30;
-            }
-          }
-
-          if(gp.buttons[2].pressed){
-            gp_pt_x -= gp_pt_speed;
-            if(gp_pt_x < -180){
-                gp_pt_x = -180;
-            }
-          }
-
-          if(gp.buttons[1].pressed){
-            gp_pt_x += gp_pt_speed;
-            if(gp_pt_x > 180){
-                gp_pt_x = 180;
-            }
-          } 
-
-          if(gp.buttons[3].pressed){
-            gp_pt_y += gp_pt_speed;
-            if(gp_pt_y > 90){
-                gp_pt_y = 90;
-            }
-          }
-
-          if(last_gp_pt_x != gp_pt_x || last_gp_pt_y != gp_pt_y){
-            cmdJsonCmd({"T":cmd_gimbal_ctrl,"X":gp_pt_x,"Y":gp_pt_y,"SPD":0,"ACC":32});
-          }
-
-          var change_x = gp.axes[2];
-          if(Math.abs(change_x) < 0.01){
-            change_x = 0;
-          }
-          var change_y = gp.axes[3];
-          if(Math.abs(change_y) < 0.01){
-            change_y = 0;
-          }
-          gp_pt_x = gp_pt_x + change_x * gp_pt_speed;
-          gp_pt_x = Math.max(-180, Math.min(gp_pt_x, 180));
-          gp_pt_y = gp_pt_y - change_y * gp_pt_speed;
-          gp_pt_y = Math.max(-30, Math.min(gp_pt_y, 90));
-
-          if(gp_pt_x != last_gp_pt_x || gp_pt_y != last_gp_pt_y){
-            cmdJsonCmd({"T":cmd_gimbal_ctrl,"X":gp_pt_x,"Y":gp_pt_y,"SPD":0,"ACC":32});
-            last_gp_pt_x = gp_pt_x;
-            last_gp_pt_y = gp_pt_y;
-
-            RotateAngle = document.getElementById("Pan").innerHTML = gp_pt_x.toFixed(2);
-            var panScale = document.getElementById("pan_scale");
-            panScale.style.transform = `rotate(${-RotateAngle}deg)`;
-
-            var tiltNum = document.getElementById("Tilt");
-            var tiltNumPanel = tiltNum.getBoundingClientRect();
-            var tiltNumMove = tiltNum.innerHTML = gp_pt_y.toFixed(2);;
-
-            var pointer = document.getElementById('tilt_scale_pointer');
-            var tiltScaleOut = document.getElementById('tilt_scale');
-            var tiltScaleBase = tiltScaleOut.getBoundingClientRect();
-            var tiltScalediv = document.getElementById('tilt_scalediv');
-            var tiltScaleDivBase = tiltScalediv.getBoundingClientRect();
-            var pointerMoveY = tiltScaleBase.height/135;
-            pointer.style.transform = `translate(${tiltScaleDivBase.width}px, ${pointerMoveY*(90 - tiltNumMove)-tiltNumPanel.height/2}px)`;
-          }
-        }
     }
   }
   window.requestAnimationFrame(readGamepad);
 }
 
 window.requestAnimationFrame(readGamepad);
-
-
-
 
 // audio drag & play
 updateAudioFileList();
