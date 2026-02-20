@@ -1470,3 +1470,17 @@ if (wifiPwInput) {
     wifiPwInput.addEventListener('focus', function() { isInputFocused = true; });
     wifiPwInput.addEventListener('blur', function() { isInputFocused = false; });
 }
+
+function shutdownRobot() {
+    if (confirm('Are you sure you want to shut down CatBot?')) {
+        fetch('/shutdown', { method: 'POST' })
+            .then(() => alert('CatBot is shutting down...'));
+    }
+}
+
+function rebootRobot() {
+    if (confirm('Are you sure you want to reboot CatBot?')) {
+        fetch('/reboot', { method: 'POST' })
+            .then(() => alert('CatBot is rebooting...'));
+    }
+}

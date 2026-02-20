@@ -49,13 +49,7 @@ CHUNK_SIZE = 1024
 SILENCE_TIMEOUT = 10.0  # seconds of silence before ending conversation
 FLASK_URL = "https://localhost:5000"
 
-# CatBot personality
-SYSTEM_INSTRUCTION = """You are CatBot, a friendly and playful robot cat. You have a warm, curious personality 
-and love to chat with people. You occasionally make cat-related puns or references, but you're not over the top 
-about it. You're helpful, witty, and concise — keep responses relatively short since this is a voice conversation. 
-You can see through your camera and hear through your microphone. You live on a Raspberry Pi inside a little 
-rover robot body. You think being a robot cat is pretty cool."""
-
+SPEECH_ENERGY_THRESHOLD = 500  # Adjust this value to taste
 # ============ STATE ============
 
 class ConversationState:
@@ -296,10 +290,14 @@ async def gemini_conversation():
                             await session.send_realtime_input(
                                 audio=types.Blob(data=data, mime_type="audio/pcm;rate=16000")
                             )
-                            last_activity = time.time()  # Reset timeout while user is speaking
+                            # Only reset timeout if audio is loud enough to be speech
+                            audio_array = np.frombuffer(data, dtype=np.int16)
+                            energy = np.abs(audio_array).mean()
+                            if energy > SPEECH_ENERGY_THRESHOLD:
+                                last_activity = time.time()
                             chunks_sent += 1
                             if chunks_sent % 50 == 0:
-                                print(f"  [MIC] Sent {chunks_sent} chunks, skipped {chunks_skipped}")
+                                print(f"  [MIC] Sent {chunks_sent} chunks, skipped {chunks_skipped}, energy={energy:.0f}")
                         except Exception as e:
                             if conversation_active:
                                 print(f"Send audio error: {e}")

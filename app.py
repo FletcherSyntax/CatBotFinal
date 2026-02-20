@@ -372,6 +372,15 @@ def delete_video():
         print(e)
         return jsonify(success=False)
 
+@app.route('/shutdown', methods=['POST'])
+def shutdown():
+    subprocess.Popen(['sudo', 'shutdown', '-h', 'now'])
+    return jsonify({'status': 'shutting down'})
+
+@app.route('/reboot', methods=['POST'])
+def reboot():
+    subprocess.Popen(['sudo', 'reboot'])
+    return jsonify({'status': 'rebooting'})
 
 
 
