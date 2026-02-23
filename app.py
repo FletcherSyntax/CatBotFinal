@@ -77,23 +77,7 @@ def get_tailscale_ip():
     except:
         return "127.0.0.1"
 
-TURN_IP = get_tailscale_ip()
-TURN_USER = "catbot"
-TURN_PASS = "wasted"  # Match what's in /etc/turnserver.conf
-
-rtc_configuration = RTCConfiguration(
-    iceServers=[
-        RTCIceServer(urls="stun:stun.l.google.com:19302"),
-        RTCIceServer(
-            urls=[
-                f"turn:{TURN_IP}:3478",
-                f"turn:{TURN_IP}:3478?transport=tcp"
-            ],
-            username=TURN_USER,
-            credential=TURN_PASS
-        ),
-    ]
-)
+rtc_configuration = RTCConfiguration(iceServers=[])
 
 # Set to keep track of RTCPeerConnection instances
 active_pcs = {}
