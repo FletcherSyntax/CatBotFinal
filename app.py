@@ -369,16 +369,11 @@ def reboot():
 def camera_capture():
     """Capture a single frame from the camera for AI vision"""
     try:
-        import cv2, base64
-        cap = cv2.VideoCapture(0)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-        ret, frame = cap.read()
-        cap.release()
-        if not ret or frame is None:
+        import base64
+        jpeg_bytes = cvf.frame_process()
+        if not jpeg_bytes:
             return jsonify({'success': False, 'error': 'Failed to capture frame'})
-        _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        image_b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
+        image_b64 = base64.b64encode(jpeg_bytes).decode('utf-8')
         return jsonify({'success': True, 'image': image_b64, 'mime_type': 'image/jpeg'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
