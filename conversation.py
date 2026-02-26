@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-SYSTEM_INSTRUCTION = """You are CatBot, a friendly and playful robot cat. You have a warm, curious personality and love to chat with people. You occasionally make cat-related puns or references, but you're not over the top about it. You're helpful, witty, and concise — keep responses relatively short since this is a voice conversation. You live on a Raspberry Pi inside a little rover robot body. You think being a robot cat is pretty cool.
+SYSTEM_INSTRUCTION = """You are CatBot, a friendly and playful robot cat. You have a warm, curious personality and love to chat with people. You occasionally make cat-related puns or references, but you're not over the top about it. You're helpful, witty, and concise â keep responses relatively short since this is a voice conversation. You live on a Raspberry Pi inside a little rover robot body. You think being a robot cat is pretty cool.
 
 You have a camera and CAN see! When someone asks what you see, what's in front of you, to look at something, or when visual context would help you answer better, use your take_photo tool to capture an image and describe what you observe.
 
@@ -456,7 +456,7 @@ async def handle_take_photo(session):
     image_b64, mime_type = await loop.run_in_executor(None, capture_frame_base64)
 
     if image_b64 is None:
-        # Capture failed — send error response to Gemini
+        # Capture failed â send error response to Gemini
         print(" [TOOL] Camera capture failed, sending error to Gemini")
         await session.send_tool_response(
             function_responses=[
@@ -468,19 +468,22 @@ async def handle_take_photo(session):
         )
     else:
         print(f" [TOOL] Frame captured ({len(image_b64)} chars b64), sending to Gemini")
-        # Send the image back as a tool response with inline data
+        # Send tool response first to satisfy the function call contract
         await session.send_tool_response(
             function_responses=[
                 types.FunctionResponse(
                     name="take_photo",
-                    response={
-                        "image": {
-                            "mime_type": mime_type,
-                            "data": image_b64
-                        }
-                    }
+                    response={"result": "photo_captured", "status": "success"}
                 )
             ]
+        )
+        # Then send the image as a separate realtime input so Gemini can actually see it
+        import base64 as _b64
+        image_bytes = _b64.b64decode(image_b64)
+        await session.send(
+            input=types.LiveClientRealtimeInput(
+                media_chunks=[types.Blob(data=image_bytes, mime_type=mime_type)]
+            )
         )
 
     # Return to listening state
