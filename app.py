@@ -365,6 +365,19 @@ def shutdown():
 def reboot():
     subprocess.Popen(['sudo', 'reboot'])
     return jsonify({'status': 'rebooting'})
+@app.route('/camera/capture', methods=['GET'])
+def camera_capture():
+    """Capture a single frame from the camera for AI vision"""
+    try:
+        from cv_ctrl import capture_frame_base64
+        image_data = capture_frame_base64()
+        if image_data:
+            return jsonify({'success': True, 'image': image_data})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to capture frame'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 
 
 
